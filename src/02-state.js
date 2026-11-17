@@ -28,11 +28,12 @@ function getState() {
 
 function safeRender() {
   if (typeof renderActiveView === 'function') {
-    renderActiveView();
+    renderActiveView();          // has its own error panel (M8), never throws
   }
   // Top command bar pieces (M2). Both skip the DOM update when nothing changed.
-  if (typeof renderTimerBar === 'function') renderTimerBar();
-  if (typeof renderHabitStrip === 'function') renderHabitStrip();
+  // Each is guarded so a fault in one can never stop the other, or the screen below, from updating.
+  try { if (typeof renderTimerBar === 'function') renderTimerBar(); } catch (e) { console.error('[FlowBoard] Timer bar failed to render:', e); }
+  try { if (typeof renderHabitStrip === 'function') renderHabitStrip(); } catch (e) { console.error('[FlowBoard] Habit strip failed to render:', e); }
 }
 
 /**

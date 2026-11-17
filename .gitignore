@@ -1,0 +1,11 @@
+# Personal data exported from the app: never upload these
+flowboard_backup_*.json
+flowboard_tasks_*.csv
+flowboard_corrupted_recovery_*.json
+flowboard_recovery_preview.json
+
+# Tools and editor files
+node_modules/
+.vscode/
+.DS_Store
+Thumbs.db

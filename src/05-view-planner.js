@@ -7,6 +7,10 @@
 
 let plannerDragTaskId = null;
 
+// The Unscheduled tray draws its first cards only, with a 'Show all' button (M8)
+const PLANNER_TRAY_LIMIT = 30;
+let plannerTrayShowAll = false;
+
 const PLANNER_STATUS_LABEL = { backlog: 'Backlog', todo: 'To do', inprogress: 'In progress', done: 'Done' };
 const PLANNER_PRIORITY_ICON = { urgent: '🔥', high: '⚡', medium: '◈', low: '▽' };
 const PLANNER_LOAD_META = {
@@ -57,12 +61,12 @@ function renderPlannerDayCard(task) {
 /** A task card used in the Unscheduled tray: one tap on a day schedules it */
 function renderPlannerTrayCard(task, weekDates, todayStr) {
   const title = esc(task.title);
-  const dayButtons = weekDates.map(({ key, date }) => `
+  const dayButtons = weekDates.map(({ key, date, longLabel }) => `
     <button type="button" data-action="planner-schedule" data-task-id="${esc(task.id)}" data-date="${esc(date)}"
       class="planner-mini px-2 rounded-md border text-xs font-medium transition-colors ${date === todayStr
         ? 'border-indigo-500/60 text-indigo-400 bg-indigo-600/10'
         : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'}"
-      aria-label="Schedule ${title} on ${esc(plannerLongDate(date))}">${key}</button>`).join('');
+      aria-label="Schedule ${title} on ${esc(longLabel || plannerLongDate(date))}">${key}</button>`).join('');
   return `
     <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
       <p class="text-sm font-medium leading-snug break-words text-[var(--text-primary)]">
@@ -159,11 +163,13 @@ function renderPlannerView(container) {
   const s = getState();
   const todayStr = getLocalDateString(new Date());
   const monday = getWeekMonday(s?.ui?.plannerWeek || new Date());
-  const weekDates = selectors.getWeekDates(monday);
+  const weekDates = selectors.getWeekDates(monday).map(d => ({ ...d, longLabel: plannerLongDate(d.date) }));   // formatted once, reused on every tray card
   const sunday = weekDates[6].date;
   const isThisWeek = monday === getWeekMonday(todayStr);
   const summary = selectors.getWeekSummary(monday, s);
   const unscheduled = selectors.getUnscheduledTasks(s);
+  const trayShown = (plannerTrayShowAll || unscheduled.length <= PLANNER_TRAY_LIMIT) ? unscheduled : unscheduled.slice(0, PLANNER_TRAY_LIMIT);
+  const trayHidden = unscheduled.length - trayShown.length;
   const carryOver = selectors.getCarryOverTasks(todayStr, s);
 
   const weekLabel = `${formatDisplayDate(monday, { day: 'numeric', month: 'short' })} – ${formatDisplayDate(sunday, { day: 'numeric', month: 'short', year: 'numeric' })}`;
@@ -216,9 +222,10 @@ function renderPlannerView(container) {
         </div>
         <div class="p-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-h-80 overflow-y-auto">
           ${unscheduled.length > 0
-            ? unscheduled.map(t => renderPlannerTrayCard(t, weekDates, todayStr)).join('')
+            ? trayShown.map(t => renderPlannerTrayCard(t, weekDates, todayStr)).join('')
             : '<p class="text-sm text-[var(--text-secondary)] sm:col-span-2 xl:col-span-3">Every open task has a day. Nice.</p>'}
         </div>
+        ${unscheduled.length > PLANNER_TRAY_LIMIT ? `<div class="px-3 pb-3"><button type="button" data-action="planner-tray-toggle" class="btn-secondary text-xs">${trayHidden > 0 ? `Show all ${unscheduled.length}` : 'Show fewer'}</button></div>` : ''}
       </section>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">

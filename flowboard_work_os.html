@@ -819,7 +819,7 @@ html:not(.dark) .text-neutral-400 { color: #525252; }
  * Application Version
  * Used for changelog, about display, and schema tracking.
  */
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.8.0';
 if (typeof window !== 'undefined') {
   window.APP_VERSION = APP_VERSION;
 }
@@ -828,6 +828,14 @@ if (typeof window !== 'undefined') {
  * Changelog shown in Settings > About. Newest first. Add an entry with every milestone.
  */
 const APP_CHANGELOG = [
+  {
+    version: '0.8.0', date: '2026-11-17', title: 'Tests and hardening (M8)',
+    notes: [
+      'If a screen fails to draw you now get a panel with Try again, a way out and a backup button, not a blank page',
+      'Stays quick with 1,000 tasks: long board columns and the planner tray show their first cards with a Show more button',
+      'More checks around midnight, month ends, year ends and clock changes; tests also run in the browser (tests/smoke.html)'
+    ]
+  },
   {
     version: '0.7.0', date: '2026-11-12', title: 'Welcome screen and polish (M7)',
     notes: [
@@ -2095,11 +2103,12 @@ function getState() {
 
 function safeRender() {
   if (typeof renderActiveView === 'function') {
-    renderActiveView();
+    renderActiveView();          // has its own error panel (M8), never throws
   }
   // Top command bar pieces (M2). Both skip the DOM update when nothing changed.
-  if (typeof renderTimerBar === 'function') renderTimerBar();
-  if (typeof renderHabitStrip === 'function') renderHabitStrip();
+  // Each is guarded so a fault in one can never stop the other, or the screen below, from updating.
+  try { if (typeof renderTimerBar === 'function') renderTimerBar(); } catch (e) { console.error('[FlowBoard] Timer bar failed to render:', e); }
+  try { if (typeof renderHabitStrip === 'function') renderHabitStrip(); } catch (e) { console.error('[FlowBoard] Habit strip failed to render:', e); }
 }
 
 /**
@@ -4538,6 +4547,27 @@ let draggedTaskId = null;
 let lastActiveElementBeforeModal = null;
 let lastFocusTargetBeforeModal = null; // describes that element, in case it is re-rendered while the dialog is open
 let activeMoveMenuTaskId = null;
+// Long columns draw their first cards only, with a 'Show more' button (M8). Keeps the board quick with
+// hundreds of cards (the column counter still shows the full number). Remembered until the page is reloaded; keys are column ids or column__group keys.
+const KANBAN_CARD_LIMIT = 30;         // per column
+const KANBAN_GROUP_CARD_LIMIT = 12;   // per group inside a column, when the board is grouped
+let kanbanShowAllCards = {};
+
+/** The cards to draw for one list, and how many are held back */
+function limitKanbanCards(tasks, key, limit = KANBAN_CARD_LIMIT) {
+  if (kanbanShowAllCards[key] || tasks.length <= limit) return { shown: tasks, hidden: 0 };
+  return { shown: tasks.slice(0, limit), hidden: tasks.length - limit };
+}
+
+function renderKanbanShowMore(key, hidden, total, limit = KANBAN_CARD_LIMIT) {
+  if (hidden <= 0) {
+    return (kanbanShowAllCards[key] && total > limit)
+      ? `<button type="button" data-action="kanban-show-fewer" data-list-key="${esc(key)}" class="btn-secondary text-xs w-full">Show fewer</button>`
+      : '';
+  }
+  return `<button type="button" data-action="kanban-show-more" data-list-key="${esc(key)}" class="btn-secondary text-xs w-full">Show ${hidden} more</button>`;
+}
+
 let openKanbanMenu = null; // which toolbar dropdown is open: 'group' | 'sort' | 'area' | 'priority' | 'scheduled' | null
 
 /**
@@ -4887,18 +4917,21 @@ function renderKanbanColumn(col, s, opts) {
   let bodyHtml;
   if (groupBy === 'none') {
     // Flat list
+    const page = limitKanbanCards(colTasks, col.id);
     const dropZoneHtml = colTasks.length === 0
       ? renderEmptyState(col, hiddenByFilters)
-      : colTasks.map(t => renderTaskCard(t, col.id, s, dragEnabled)).join('');
+      : page.shown.map(t => renderTaskCard(t, col.id, s, dragEnabled)).join('');
     bodyHtml = `
-      <div class="column-drop-zone flex-1 flex flex-col gap-3 min-h-[200px]" data-drop-status="${esc(col.id)}">
+      <div class="column-drop-zone flex-1 flex flex-col gap-3 min-h-[200px]" data-drop-status="${esc(col.id)}" ${page.hidden > 0 ? 'data-shortened="true"' : ''}>
         ${dropZoneHtml}
-      </div>`;
+      </div>
+      ${renderKanbanShowMore(col.id, page.hidden, colTasks.length) ? `<div class="mt-3">${renderKanbanShowMore(col.id, page.hidden, colTasks.length)}</div>` : ''}`;
   } else {
     // Grouped list — no drop zone (drag disabled in group mode)
     bodyHtml = groups.map(group => {
       const gKey = `${col.id}__${group.key}`;
       const isGroupCollapsed = Boolean(collapsedGroups[gKey]);
+      const gPage = isGroupCollapsed ? { shown: [], hidden: 0 } : limitKanbanCards(group.tasks, gKey, KANBAN_GROUP_CARD_LIMIT);
       const groupChevron = `
         <svg class="w-3.5 h-3.5 transition-transform ${isGroupCollapsed ? '-rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -4914,7 +4947,8 @@ function renderKanbanColumn(col, s, opts) {
           </button>
           ${isGroupCollapsed ? '' : `
             <div class="mt-1 space-y-2 pl-2 border-l-2 border-[var(--border-color)]">
-              ${group.tasks.map(t => renderTaskCard(t, col.id, s, false)).join('')}
+              ${gPage.shown.map(t => renderTaskCard(t, col.id, s, false)).join('')}
+              ${renderKanbanShowMore(gKey, gPage.hidden, group.tasks.length, KANBAN_GROUP_CARD_LIMIT)}
             </div>
           `}
         </div>`;
@@ -5307,8 +5341,19 @@ function setupKanbanDragAndDrop(container) {
           newOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
         }
       } else {
-        // Dropped at bottom of column
-        newOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
+        // Dropped at the bottom of the column. In a shortened column ('Show N more'), that means
+        // just after the last card on screen, not after the cards that are held back.
+        const endOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
+        newOrder = endOrder;
+        if (zone.hasAttribute('data-shortened')) {
+          const visible = [...zone.querySelectorAll('.task-card')].map(c => c.getAttribute('data-task-id')).filter(id => id !== taskId);
+          const lastIndex = fullColumnTasks.findIndex(t => t.id === visible[visible.length - 1]);
+          if (lastIndex >= 0) {
+            const lastOrder = Number(fullColumnTasks[lastIndex].order) || 0;
+            const nextTask = fullColumnTasks[lastIndex + 1];
+            newOrder = nextTask ? (lastOrder + (Number(nextTask.order) || lastOrder + 1000)) / 2 : endOrder;
+          }
+        }
       }
 
       actions.moveTask(taskId, targetStatus, newOrder);
@@ -5932,6 +5977,10 @@ function openAreaManagerModal() {
 
 let plannerDragTaskId = null;
 
+// The Unscheduled tray draws its first cards only, with a 'Show all' button (M8)
+const PLANNER_TRAY_LIMIT = 30;
+let plannerTrayShowAll = false;
+
 const PLANNER_STATUS_LABEL = { backlog: 'Backlog', todo: 'To do', inprogress: 'In progress', done: 'Done' };
 const PLANNER_PRIORITY_ICON = { urgent: '🔥', high: '⚡', medium: '◈', low: '▽' };
 const PLANNER_LOAD_META = {
@@ -5982,12 +6031,12 @@ function renderPlannerDayCard(task) {
 /** A task card used in the Unscheduled tray: one tap on a day schedules it */
 function renderPlannerTrayCard(task, weekDates, todayStr) {
   const title = esc(task.title);
-  const dayButtons = weekDates.map(({ key, date }) => `
+  const dayButtons = weekDates.map(({ key, date, longLabel }) => `
     <button type="button" data-action="planner-schedule" data-task-id="${esc(task.id)}" data-date="${esc(date)}"
       class="planner-mini px-2 rounded-md border text-xs font-medium transition-colors ${date === todayStr
         ? 'border-indigo-500/60 text-indigo-400 bg-indigo-600/10'
         : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'}"
-      aria-label="Schedule ${title} on ${esc(plannerLongDate(date))}">${key}</button>`).join('');
+      aria-label="Schedule ${title} on ${esc(longLabel || plannerLongDate(date))}">${key}</button>`).join('');
   return `
     <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
       <p class="text-sm font-medium leading-snug break-words text-[var(--text-primary)]">
@@ -6084,11 +6133,13 @@ function renderPlannerView(container) {
   const s = getState();
   const todayStr = getLocalDateString(new Date());
   const monday = getWeekMonday(s?.ui?.plannerWeek || new Date());
-  const weekDates = selectors.getWeekDates(monday);
+  const weekDates = selectors.getWeekDates(monday).map(d => ({ ...d, longLabel: plannerLongDate(d.date) }));   // formatted once, reused on every tray card
   const sunday = weekDates[6].date;
   const isThisWeek = monday === getWeekMonday(todayStr);
   const summary = selectors.getWeekSummary(monday, s);
   const unscheduled = selectors.getUnscheduledTasks(s);
+  const trayShown = (plannerTrayShowAll || unscheduled.length <= PLANNER_TRAY_LIMIT) ? unscheduled : unscheduled.slice(0, PLANNER_TRAY_LIMIT);
+  const trayHidden = unscheduled.length - trayShown.length;
   const carryOver = selectors.getCarryOverTasks(todayStr, s);
 
   const weekLabel = `${formatDisplayDate(monday, { day: 'numeric', month: 'short' })} – ${formatDisplayDate(sunday, { day: 'numeric', month: 'short', year: 'numeric' })}`;
@@ -6141,9 +6192,10 @@ function renderPlannerView(container) {
         </div>
         <div class="p-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 max-h-80 overflow-y-auto">
           ${unscheduled.length > 0
-            ? unscheduled.map(t => renderPlannerTrayCard(t, weekDates, todayStr)).join('')
+            ? trayShown.map(t => renderPlannerTrayCard(t, weekDates, todayStr)).join('')
             : '<p class="text-sm text-[var(--text-secondary)] sm:col-span-2 xl:col-span-3">Every open task has a day. Nice.</p>'}
         </div>
+        ${unscheduled.length > PLANNER_TRAY_LIMIT ? `<div class="px-3 pb-3"><button type="button" data-action="planner-tray-toggle" class="btn-secondary text-xs">${trayHidden > 0 ? `Show all ${unscheduled.length}` : 'Show fewer'}</button></div>` : ''}
       </section>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -7076,7 +7128,7 @@ function renderInsightsView(container) {
         <p class="text-sm font-semibold text-[var(--text-primary)]"><span aria-hidden="true">${diagIcon[d.level]}</span> <span class="sr-only">${diagLabel[d.level]}: </span>${esc(d.title)}</p>
         <p class="text-sm text-[var(--text-secondary)] mt-0.5">${esc(d.detail)}</p>
       </div>
-      ${d.action ? `<button type="button" data-action="switch-view" data-view-tab="${esc(d.action.view)}" class="btn-secondary text-xs flex-shrink-0">${esc(d.action.label)}</button>` : ''}
+      ${d.action ? `<button type="button" data-action="switch-view" data-view="${esc(d.action.view)}" class="btn-secondary text-xs flex-shrink-0">${esc(d.action.label)}</button>` : ''}
     </li>`).join('');
 
   // ---- chart cards ----
@@ -7124,7 +7176,7 @@ function renderInsightsView(container) {
       ${nothingYet ? `<div class="p-4 rounded-xl border border-indigo-500/40 bg-indigo-600/10 text-sm text-[var(--text-primary)]">
         <p class="font-semibold">Nothing to analyse yet</p>
         <p class="text-[var(--text-secondary)] mt-0.5">Complete a task, run the focus timer or tick a habit and this page fills in. Want to look around first? Load the sample workspace from Settings.</p>
-        <button type="button" data-action="switch-view" data-view-tab="settings" class="btn-secondary text-xs mt-2">Open Settings</button>
+        <button type="button" data-action="switch-view" data-view="settings" class="btn-secondary text-xs mt-2">Open Settings</button>
       </div>` : ''}
 
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">${cards}</div>
@@ -7348,7 +7400,7 @@ function renderSettingsView(container) {
         </p>
         <dl class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--text-secondary)] pt-2 border-t border-[var(--border-color)]">
           <div class="flex gap-1.5"><dt>Version</dt><dd class="font-mono font-semibold text-[var(--text-primary)]">v${esc(APP_VERSION)}</dd></div>
-          <div class="flex gap-1.5"><dt>Milestone</dt><dd class="font-semibold text-[var(--text-primary)]">M5 + M7 (Insights, welcome and polish)</dd></div>
+          <div class="flex gap-1.5"><dt>Milestone</dt><dd class="font-semibold text-[var(--text-primary)]">M8 (Tests and hardening)</dd></div>
           <div class="flex gap-1.5"><dt>Data format</dt><dd class="font-mono font-semibold text-[var(--text-primary)]">v${esc(s.schemaVersion)}</dd></div>
         </dl>
         <div class="flex flex-wrap gap-3">
@@ -7658,6 +7710,65 @@ function restoreFocusSnapshot(snap, container) {
   } catch (e) { /* number and date inputs have no caret */ }
 }
 
+// ----------------------------------------------------------------------------
+// ERROR BOUNDARY (M8)
+// If one screen fails to draw, show a panel with ways out instead of a blank page.
+// The header, timer and the other screens keep working, and nothing is saved or changed.
+// ----------------------------------------------------------------------------
+
+const VIEW_RENDERERS = {
+  kanban: (c) => renderKanbanView(c),
+  planner: (c) => renderPlannerView(c),
+  journal: (c) => renderJournalView(c),
+  insights: (c) => renderInsightsView(c),
+  settings: (c) => renderSettingsView(c)
+};
+
+/** HTML for the panel shown when a screen cannot be drawn (pure: tested without a browser) */
+function buildViewErrorHtml(viewName, err) {
+  const label = VIEW_LABELS[viewName] || 'This screen';
+  const message = (err && (err.message || String(err))) || 'Unknown error';
+  const escape = viewName === 'kanban'
+    ? { view: 'settings', label: 'Open Settings' }
+    : { view: 'kanban', label: 'Go to the board' };
+  return `
+    <section class="max-w-xl mx-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-6" role="alert" aria-labelledby="view-error-title">
+      <h1 id="view-error-title" class="text-xl font-bold text-[var(--text-primary)]">${esc(label)} could not be shown</h1>
+      <p class="text-sm text-[var(--text-secondary)] mt-2">Something went wrong while drawing this screen. <strong class="text-[var(--text-primary)]">Your data has not been changed</strong>, and the other screens still work.</p>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <button type="button" id="view-error-retry" data-action="retry-view" class="btn-primary">Try again</button>
+        <button type="button" data-action="switch-view" data-view="${escape.view}" class="btn-secondary">${escape.label}</button>
+        <button type="button" data-action="download-json-backup" class="btn-secondary">Download a backup file</button>
+      </div>
+      <details class="mt-4">
+        <summary class="text-xs text-[var(--text-secondary)] cursor-pointer min-h-[44px] flex items-center">Technical details</summary>
+        <p class="text-xs font-mono text-[var(--text-secondary)] break-words">${esc(String(viewName))}: ${esc(message.slice(0, 500))}</p>
+        <p class="text-xs text-[var(--text-secondary)] mt-1">FlowBoard v${esc(APP_VERSION)}. If this keeps happening, download a backup file and reload the page.</p>
+      </details>
+    </section>`;
+}
+
+/**
+ * Draw one screen. Returns true when it drew, false when the error panel was shown instead.
+ * Never throws.
+ */
+function renderViewSafely(container, viewName) {
+  const draw = VIEW_RENDERERS[viewName] || VIEW_RENDERERS.kanban;
+  try {
+    draw(container);
+    return true;
+  } catch (err) {
+    console.error(`[FlowBoard] The ${viewName} screen failed to render:`, err);
+    try { if (typeof destroyInsightsCharts === 'function') destroyInsightsCharts(); } catch (e) { /* nothing to release */ }
+    try {
+      container.innerHTML = buildViewErrorHtml(viewName, err);
+    } catch (e) {
+      container.textContent = 'This screen could not be shown. Your data has not been changed. Please reload the page.';
+    }
+    return false;
+  }
+}
+
 function renderActiveView() {
   const container = document.getElementById('main-content');
   if (!container) return;
@@ -7669,27 +7780,15 @@ function renderActiveView() {
   // Leaving Insights: release its charts (the Insights view re-creates them each time it draws)
   if (activeView !== 'insights' && typeof destroyInsightsCharts === 'function') destroyInsightsCharts();
 
-  switch (activeView) {
-    case 'kanban':
-      renderKanbanView(container);
-      break;
-    case 'planner':
-      renderPlannerView(container);
-      break;
-    case 'journal':
-      renderJournalView(container);
-      break;
-    case 'insights':
-      renderInsightsView(container);
-      break;
-    case 'settings':
-      renderSettingsView(container);
-      break;
-    default:
-      renderKanbanView(container);
-  }
-
+  renderViewSafely(container, activeView);
   restoreFocusSnapshot(focusSnap, container);
+}
+
+/** A button press failed part-way: say so, and re-draw from the saved state so the screen is not left half-updated */
+function reportActionError(err) {
+  console.error('[FlowBoard] An action failed:', err);
+  try { showToast('That did not work. Nothing was lost. Please try again.', { type: 'error', duration: 6000 }); } catch (e) { /* toast is best effort */ }
+  try { safeRender(); } catch (e) { /* the error panel covers this */ }
 }
 
 /**
@@ -7849,6 +7948,23 @@ function handleGlobalClick(e) {
         actions.deleteTag(tagId);
         openTagManagerModal(); // Refresh modal
       }
+      break;
+    }
+    case 'kanban-show-more':
+    case 'kanban-show-fewer': {
+      // The pressed button is replaced by its opposite: keep keyboard focus on that one
+      const listKey = target.getAttribute('data-list-key');
+      if (action === 'kanban-show-more') kanbanShowAllCards[listKey] = true;
+      else delete kanbanShowAllCards[listKey];
+      renderActiveView();
+      const swapped = [...document.querySelectorAll('[data-action="kanban-show-more"], [data-action="kanban-show-fewer"]')]
+        .find(btn => btn.getAttribute('data-list-key') === listKey);
+      if (swapped) swapped.focus();
+      break;
+    }
+    case 'planner-tray-toggle': {
+      plannerTrayShowAll = !plannerTrayShowAll;
+      renderActiveView();
       break;
     }
     case 'toggle-show-older-done': {
@@ -8089,6 +8205,13 @@ function handleGlobalClick(e) {
       openStartBlankModal();
       break;
     }
+    // Error panel (M8)
+    case 'retry-view': {
+      renderActiveView();
+      document.getElementById('view-error-retry')?.focus();
+      break;
+    }
+
     // Insights (M5)
     case 'insights-range': {
       actions.setInsightsRange(target.getAttribute('data-range'));
@@ -8410,7 +8533,9 @@ function initApp() {
   }
 
   // Bind global event delegation
-  document.addEventListener('click', handleGlobalClick);
+  document.addEventListener('click', (e) => {
+    try { handleGlobalClick(e); } catch (err) { reportActionError(err); }
+  });
   setupKeyboardShortcuts();
 
   // Offline badge: FlowBoard needs no connection, but it is good to know why a hosted page will not reload
@@ -8496,7 +8621,10 @@ function initApp() {
 }
 
 // Auto-boot on DOM ready
-if (document.readyState === 'loading') {
+// (tests/smoke.html sets FLOWBOARD_NO_BOOT so it can load these files without starting the app)
+if (typeof window !== 'undefined' && window.FLOWBOARD_NO_BOOT) {
+  /* loaded for testing only */
+} else if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);
 } else {
   initApp();

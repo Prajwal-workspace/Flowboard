@@ -92,6 +92,65 @@ function restoreFocusSnapshot(snap, container) {
   } catch (e) { /* number and date inputs have no caret */ }
 }
 
+// ----------------------------------------------------------------------------
+// ERROR BOUNDARY (M8)
+// If one screen fails to draw, show a panel with ways out instead of a blank page.
+// The header, timer and the other screens keep working, and nothing is saved or changed.
+// ----------------------------------------------------------------------------
+
+const VIEW_RENDERERS = {
+  kanban: (c) => renderKanbanView(c),
+  planner: (c) => renderPlannerView(c),
+  journal: (c) => renderJournalView(c),
+  insights: (c) => renderInsightsView(c),
+  settings: (c) => renderSettingsView(c)
+};
+
+/** HTML for the panel shown when a screen cannot be drawn (pure: tested without a browser) */
+function buildViewErrorHtml(viewName, err) {
+  const label = VIEW_LABELS[viewName] || 'This screen';
+  const message = (err && (err.message || String(err))) || 'Unknown error';
+  const escape = viewName === 'kanban'
+    ? { view: 'settings', label: 'Open Settings' }
+    : { view: 'kanban', label: 'Go to the board' };
+  return `
+    <section class="max-w-xl mx-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-card)] p-6" role="alert" aria-labelledby="view-error-title">
+      <h1 id="view-error-title" class="text-xl font-bold text-[var(--text-primary)]">${esc(label)} could not be shown</h1>
+      <p class="text-sm text-[var(--text-secondary)] mt-2">Something went wrong while drawing this screen. <strong class="text-[var(--text-primary)]">Your data has not been changed</strong>, and the other screens still work.</p>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <button type="button" id="view-error-retry" data-action="retry-view" class="btn-primary">Try again</button>
+        <button type="button" data-action="switch-view" data-view="${escape.view}" class="btn-secondary">${escape.label}</button>
+        <button type="button" data-action="download-json-backup" class="btn-secondary">Download a backup file</button>
+      </div>
+      <details class="mt-4">
+        <summary class="text-xs text-[var(--text-secondary)] cursor-pointer min-h-[44px] flex items-center">Technical details</summary>
+        <p class="text-xs font-mono text-[var(--text-secondary)] break-words">${esc(String(viewName))}: ${esc(message.slice(0, 500))}</p>
+        <p class="text-xs text-[var(--text-secondary)] mt-1">FlowBoard v${esc(APP_VERSION)}. If this keeps happening, download a backup file and reload the page.</p>
+      </details>
+    </section>`;
+}
+
+/**
+ * Draw one screen. Returns true when it drew, false when the error panel was shown instead.
+ * Never throws.
+ */
+function renderViewSafely(container, viewName) {
+  const draw = VIEW_RENDERERS[viewName] || VIEW_RENDERERS.kanban;
+  try {
+    draw(container);
+    return true;
+  } catch (err) {
+    console.error(`[FlowBoard] The ${viewName} screen failed to render:`, err);
+    try { if (typeof destroyInsightsCharts === 'function') destroyInsightsCharts(); } catch (e) { /* nothing to release */ }
+    try {
+      container.innerHTML = buildViewErrorHtml(viewName, err);
+    } catch (e) {
+      container.textContent = 'This screen could not be shown. Your data has not been changed. Please reload the page.';
+    }
+    return false;
+  }
+}
+
 function renderActiveView() {
   const container = document.getElementById('main-content');
   if (!container) return;
@@ -103,27 +162,15 @@ function renderActiveView() {
   // Leaving Insights: release its charts (the Insights view re-creates them each time it draws)
   if (activeView !== 'insights' && typeof destroyInsightsCharts === 'function') destroyInsightsCharts();
 
-  switch (activeView) {
-    case 'kanban':
-      renderKanbanView(container);
-      break;
-    case 'planner':
-      renderPlannerView(container);
-      break;
-    case 'journal':
-      renderJournalView(container);
-      break;
-    case 'insights':
-      renderInsightsView(container);
-      break;
-    case 'settings':
-      renderSettingsView(container);
-      break;
-    default:
-      renderKanbanView(container);
-  }
-
+  renderViewSafely(container, activeView);
   restoreFocusSnapshot(focusSnap, container);
+}
+
+/** A button press failed part-way: say so, and re-draw from the saved state so the screen is not left half-updated */
+function reportActionError(err) {
+  console.error('[FlowBoard] An action failed:', err);
+  try { showToast('That did not work. Nothing was lost. Please try again.', { type: 'error', duration: 6000 }); } catch (e) { /* toast is best effort */ }
+  try { safeRender(); } catch (e) { /* the error panel covers this */ }
 }
 
 /**
@@ -283,6 +330,23 @@ function handleGlobalClick(e) {
         actions.deleteTag(tagId);
         openTagManagerModal(); // Refresh modal
       }
+      break;
+    }
+    case 'kanban-show-more':
+    case 'kanban-show-fewer': {
+      // The pressed button is replaced by its opposite: keep keyboard focus on that one
+      const listKey = target.getAttribute('data-list-key');
+      if (action === 'kanban-show-more') kanbanShowAllCards[listKey] = true;
+      else delete kanbanShowAllCards[listKey];
+      renderActiveView();
+      const swapped = [...document.querySelectorAll('[data-action="kanban-show-more"], [data-action="kanban-show-fewer"]')]
+        .find(btn => btn.getAttribute('data-list-key') === listKey);
+      if (swapped) swapped.focus();
+      break;
+    }
+    case 'planner-tray-toggle': {
+      plannerTrayShowAll = !plannerTrayShowAll;
+      renderActiveView();
       break;
     }
     case 'toggle-show-older-done': {
@@ -523,6 +587,13 @@ function handleGlobalClick(e) {
       openStartBlankModal();
       break;
     }
+    // Error panel (M8)
+    case 'retry-view': {
+      renderActiveView();
+      document.getElementById('view-error-retry')?.focus();
+      break;
+    }
+
     // Insights (M5)
     case 'insights-range': {
       actions.setInsightsRange(target.getAttribute('data-range'));
@@ -844,7 +915,9 @@ function initApp() {
   }
 
   // Bind global event delegation
-  document.addEventListener('click', handleGlobalClick);
+  document.addEventListener('click', (e) => {
+    try { handleGlobalClick(e); } catch (err) { reportActionError(err); }
+  });
   setupKeyboardShortcuts();
 
   // Offline badge: FlowBoard needs no connection, but it is good to know why a hosted page will not reload
@@ -930,7 +1003,10 @@ function initApp() {
 }
 
 // Auto-boot on DOM ready
-if (document.readyState === 'loading') {
+// (tests/smoke.html sets FLOWBOARD_NO_BOOT so it can load these files without starting the app)
+if (typeof window !== 'undefined' && window.FLOWBOARD_NO_BOOT) {
+  /* loaded for testing only */
+} else if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);
 } else {
   initApp();

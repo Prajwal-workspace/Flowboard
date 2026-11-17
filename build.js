@@ -1,6 +1,7 @@
 // Build FlowBoard into one file.  Run from the project folder:  node build.js
 // Joins src/*.js in order and puts them, with src/styles.css, into src/index.template.html.
-// Output: flowboard_work_os.html
+// Output: flowboard_work_os.html, and index.html (an identical copy, so the hosted site opens at the
+// folder address, for example https://prajwal-workspace.github.io/Flowboard/). Never edit either by hand.
 const fs = require('fs'), path = require('path');
 const root = __dirname;
 const order = ['00-utils', '01-storage', '02-state', '03-timer', '04-view-kanban', '05-view-planner',
@@ -17,4 +18,6 @@ if (!html.includes('<!-- INLINE_STYLE -->') || !html.includes('<!-- INLINE_SCRIP
 html = html.replace('<!-- INLINE_STYLE -->', () => '<style>' + css + '</style>')
   .replace('<!-- INLINE_SCRIPT -->', () => '<script>' + js + '</script>');
 fs.writeFileSync(path.join(root, 'flowboard_work_os.html'), html);
-console.log('Built flowboard_work_os.html (' + Math.round(html.length / 1024) + ' KB)');
+fs.writeFileSync(path.join(root, 'index.html'), html);
+const version = (js.match(/const APP_VERSION = '([^']+)'/) || [])[1] || '?';
+console.log('Built flowboard_work_os.html and index.html: v' + version + ', ' + Math.round(html.length / 1024) + ' KB');

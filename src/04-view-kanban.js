@@ -9,6 +9,27 @@ let draggedTaskId = null;
 let lastActiveElementBeforeModal = null;
 let lastFocusTargetBeforeModal = null; // describes that element, in case it is re-rendered while the dialog is open
 let activeMoveMenuTaskId = null;
+// Long columns draw their first cards only, with a 'Show more' button (M8). Keeps the board quick with
+// hundreds of cards (the column counter still shows the full number). Remembered until the page is reloaded; keys are column ids or column__group keys.
+const KANBAN_CARD_LIMIT = 30;         // per column
+const KANBAN_GROUP_CARD_LIMIT = 12;   // per group inside a column, when the board is grouped
+let kanbanShowAllCards = {};
+
+/** The cards to draw for one list, and how many are held back */
+function limitKanbanCards(tasks, key, limit = KANBAN_CARD_LIMIT) {
+  if (kanbanShowAllCards[key] || tasks.length <= limit) return { shown: tasks, hidden: 0 };
+  return { shown: tasks.slice(0, limit), hidden: tasks.length - limit };
+}
+
+function renderKanbanShowMore(key, hidden, total, limit = KANBAN_CARD_LIMIT) {
+  if (hidden <= 0) {
+    return (kanbanShowAllCards[key] && total > limit)
+      ? `<button type="button" data-action="kanban-show-fewer" data-list-key="${esc(key)}" class="btn-secondary text-xs w-full">Show fewer</button>`
+      : '';
+  }
+  return `<button type="button" data-action="kanban-show-more" data-list-key="${esc(key)}" class="btn-secondary text-xs w-full">Show ${hidden} more</button>`;
+}
+
 let openKanbanMenu = null; // which toolbar dropdown is open: 'group' | 'sort' | 'area' | 'priority' | 'scheduled' | null
 
 /**
@@ -358,18 +379,21 @@ function renderKanbanColumn(col, s, opts) {
   let bodyHtml;
   if (groupBy === 'none') {
     // Flat list
+    const page = limitKanbanCards(colTasks, col.id);
     const dropZoneHtml = colTasks.length === 0
       ? renderEmptyState(col, hiddenByFilters)
-      : colTasks.map(t => renderTaskCard(t, col.id, s, dragEnabled)).join('');
+      : page.shown.map(t => renderTaskCard(t, col.id, s, dragEnabled)).join('');
     bodyHtml = `
-      <div class="column-drop-zone flex-1 flex flex-col gap-3 min-h-[200px]" data-drop-status="${esc(col.id)}">
+      <div class="column-drop-zone flex-1 flex flex-col gap-3 min-h-[200px]" data-drop-status="${esc(col.id)}" ${page.hidden > 0 ? 'data-shortened="true"' : ''}>
         ${dropZoneHtml}
-      </div>`;
+      </div>
+      ${renderKanbanShowMore(col.id, page.hidden, colTasks.length) ? `<div class="mt-3">${renderKanbanShowMore(col.id, page.hidden, colTasks.length)}</div>` : ''}`;
   } else {
     // Grouped list — no drop zone (drag disabled in group mode)
     bodyHtml = groups.map(group => {
       const gKey = `${col.id}__${group.key}`;
       const isGroupCollapsed = Boolean(collapsedGroups[gKey]);
+      const gPage = isGroupCollapsed ? { shown: [], hidden: 0 } : limitKanbanCards(group.tasks, gKey, KANBAN_GROUP_CARD_LIMIT);
       const groupChevron = `
         <svg class="w-3.5 h-3.5 transition-transform ${isGroupCollapsed ? '-rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -385,7 +409,8 @@ function renderKanbanColumn(col, s, opts) {
           </button>
           ${isGroupCollapsed ? '' : `
             <div class="mt-1 space-y-2 pl-2 border-l-2 border-[var(--border-color)]">
-              ${group.tasks.map(t => renderTaskCard(t, col.id, s, false)).join('')}
+              ${gPage.shown.map(t => renderTaskCard(t, col.id, s, false)).join('')}
+              ${renderKanbanShowMore(gKey, gPage.hidden, group.tasks.length, KANBAN_GROUP_CARD_LIMIT)}
             </div>
           `}
         </div>`;
@@ -778,8 +803,19 @@ function setupKanbanDragAndDrop(container) {
           newOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
         }
       } else {
-        // Dropped at bottom of column
-        newOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
+        // Dropped at the bottom of the column. In a shortened column ('Show N more'), that means
+        // just after the last card on screen, not after the cards that are held back.
+        const endOrder = (fullColumnTasks.length > 0 ? Math.max(...fullColumnTasks.map(t => Number(t.order) || 0)) : 0) + 1000;
+        newOrder = endOrder;
+        if (zone.hasAttribute('data-shortened')) {
+          const visible = [...zone.querySelectorAll('.task-card')].map(c => c.getAttribute('data-task-id')).filter(id => id !== taskId);
+          const lastIndex = fullColumnTasks.findIndex(t => t.id === visible[visible.length - 1]);
+          if (lastIndex >= 0) {
+            const lastOrder = Number(fullColumnTasks[lastIndex].order) || 0;
+            const nextTask = fullColumnTasks[lastIndex + 1];
+            newOrder = nextTask ? (lastOrder + (Number(nextTask.order) || lastOrder + 1000)) / 2 : endOrder;
+          }
+        }
       }
 
       actions.moveTask(taskId, targetStatus, newOrder);

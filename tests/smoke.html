@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowBoard tests</title>
+  <style>
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #0f172a; background: #f8fafc; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    #result { font-size: 1.15rem; font-weight: 700; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #cbd5e1; background: #fff; }
+    #result.ok { border-color: #047857; color: #065f46; background: #ecfdf5; }
+    #result.bad { border-color: #b91c1c; color: #991b1b; background: #fef2f2; }
+    li { margin: 0.25rem 0; }
+    small { color: #475569; }
+  </style>
+</head>
+<body>
+  <h1>FlowBoard tests</h1>
+  <p><small>Runs the same checks as <code>node tests/logic-test.js</code>, in this browser. It uses a pretend storage that lives only on this page, so your real FlowBoard data is never read or changed.</small></p>
+  <p id="result" role="status">Running…</p>
+  <ul id="failures"></ul>
+
+  <script>
+    // 1. Pretend storage: the app code below must never see the real localStorage.
+    (function () {
+      var store = {};
+      var fake = {
+        getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+        setItem: function (k, v) { store[k] = String(v); },
+        removeItem: function (k) { delete store[k]; },
+        key: function (i) { return Object.keys(store)[i] || null; }
+      };
+      Object.defineProperty(fake, 'length', { get: function () { return Object.keys(store).length; } });
+      var replaced = false;
+      try { Object.defineProperty(window, 'localStorage', { value: fake, configurable: true }); replaced = (window.localStorage === fake); } catch (e) { replaced = false; }
+      window.__storageIsolated = replaced;
+      window.FLOWBOARD_NO_BOOT = true;      // load the app code without starting the app
+      var show = function (text, cls) { var r = document.getElementById('result'); r.textContent = text; r.className = cls; };
+      window.__flowboardTestsDone = function (pass, fail, failures) {
+        window.__flowboardTestResult = { pass: pass, fail: fail, failures: failures };
+        show('Passed ' + pass + ', failed ' + fail, fail ? 'bad' : 'ok');
+        var ul = document.getElementById('failures');
+        failures.forEach(function (name) { var li = document.createElement('li'); li.textContent = 'FAIL: ' + name; ul.appendChild(li); });
+        document.title = (fail ? 'FAILED ' + fail : 'Passed ' + pass) + ' · FlowBoard tests';
+      };
+      window.addEventListener('error', function (e) {
+        if (window.__flowboardTestResult) return;
+        show('The tests stopped early: ' + (e.message || 'script error') + '. Open this file from the tests folder of the project, next to the src folder.', 'bad');
+      });
+    })();
+  </script>
+  <script>
+    // 2. Stop here if the pretend storage could not be installed (so real data stays safe).
+    if (!window.__storageIsolated) {
+      document.getElementById('result').textContent = 'Not run: this browser would not allow a pretend storage, so the tests were skipped to keep your data safe. Use: node tests/logic-test.js';
+      document.getElementById('result').className = 'bad';
+    } else {
+      ['00-utils', '01-storage', '02-state', '03-timer', '04-view-kanban', '05-view-planner', '06-view-journal',
+        '07-view-insights', '08-view-settings', '09-sync', '10-app'].forEach(function (f) {
+        document.write('<script src="../src/' + f + '.js"><\/script>');
+      });
+      document.write('<script src="cases.js"><\/script>');
+    }
+  </script>
+</body>
+</html>

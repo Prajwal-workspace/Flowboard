@@ -443,7 +443,7 @@ function renderInsightsView(container) {
         <p class="text-sm font-semibold text-[var(--text-primary)]"><span aria-hidden="true">${diagIcon[d.level]}</span> <span class="sr-only">${diagLabel[d.level]}: </span>${esc(d.title)}</p>
         <p class="text-sm text-[var(--text-secondary)] mt-0.5">${esc(d.detail)}</p>
       </div>
-      ${d.action ? `<button type="button" data-action="switch-view" data-view-tab="${esc(d.action.view)}" class="btn-secondary text-xs flex-shrink-0">${esc(d.action.label)}</button>` : ''}
+      ${d.action ? `<button type="button" data-action="switch-view" data-view="${esc(d.action.view)}" class="btn-secondary text-xs flex-shrink-0">${esc(d.action.label)}</button>` : ''}
     </li>`).join('');
 
   // ---- chart cards ----
@@ -491,7 +491,7 @@ function renderInsightsView(container) {
       ${nothingYet ? `<div class="p-4 rounded-xl border border-indigo-500/40 bg-indigo-600/10 text-sm text-[var(--text-primary)]">
         <p class="font-semibold">Nothing to analyse yet</p>
         <p class="text-[var(--text-secondary)] mt-0.5">Complete a task, run the focus timer or tick a habit and this page fills in. Want to look around first? Load the sample workspace from Settings.</p>
-        <button type="button" data-action="switch-view" data-view-tab="settings" class="btn-secondary text-xs mt-2">Open Settings</button>
+        <button type="button" data-action="switch-view" data-view="settings" class="btn-secondary text-xs mt-2">Open Settings</button>
       </div>` : ''}
 
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">${cards}</div>

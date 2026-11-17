@@ -174,7 +174,7 @@ function renderSettingsView(container) {
         </p>
         <dl class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-[var(--text-secondary)] pt-2 border-t border-[var(--border-color)]">
           <div class="flex gap-1.5"><dt>Version</dt><dd class="font-mono font-semibold text-[var(--text-primary)]">v${esc(APP_VERSION)}</dd></div>
-          <div class="flex gap-1.5"><dt>Milestone</dt><dd class="font-semibold text-[var(--text-primary)]">M5 + M7 (Insights, welcome and polish)</dd></div>
+          <div class="flex gap-1.5"><dt>Milestone</dt><dd class="font-semibold text-[var(--text-primary)]">M8 (Tests and hardening)</dd></div>
           <div class="flex gap-1.5"><dt>Data format</dt><dd class="font-mono font-semibold text-[var(--text-primary)]">v${esc(s.schemaVersion)}</dd></div>
         </dl>
         <div class="flex flex-wrap gap-3">

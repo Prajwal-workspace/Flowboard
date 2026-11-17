@@ -223,8 +223,13 @@ flowboard/
     10-app.js           (router, event delegation, boot)
   build.js              (concatenates into flowboard_work_os.html)
   tests/
-    smoke.html          (runs pure-function tests in the browser)
+    cases.js            (the test cases, shared by both runners)
+    logic-test.js       (runs cases.js in Node)
+    smoke.html          (runs cases.js in the browser, on a pretend storage)
+    stress-data.js      (large workspace for the speed check)
+    perf-test.js        (speed check in Node)
   flowboard_work_os.html (generated output)
+  index.html             (generated, identical copy for hosting)
 ```
 
 ### Patterns the Agent Must Follow
@@ -246,7 +251,7 @@ flowboard/
 - **M5**: Insights and analytics (done)
 - **M6**: Settings, data portability, and safety (done)
 - **M7**: Onboarding, polish, and PWA (done; PWA install documented as not possible in one file, see M7 behaviors)
-- **M8**: Tests and hardening
+- **M8**: Tests and hardening (done)
 - **M9 (v1.1)**: Cloud sync with merge
 
 ---
@@ -349,3 +354,13 @@ flowboard/
 - Accessibility: page zoom is allowed; a 'Skip to content' link is the first Tab stop; every field and button has a name; text colours meet WCAG AA (4.5:1) in both themes for the palette listed in `styles.css` (light secondary text is #475569; pale accent text gets darker shades in the light theme); white-on-accent buttons use `--accent-solid`; on touch screens every button and field is at least 44px and fields use 16px text (stops iPhone auto-zoom); motion is removed under `prefers-reduced-motion`.
 - About panel (Settings): version, milestone, data format, changelog (`APP_CHANGELOG` in `00-utils.js`, newest first, add an entry per milestone) and a note on offline use.
 - PWA (limitation, by design): no web manifest and no service worker. Browsers refuse a service worker from a Blob URL and on `file://`, and the CSP blocks a Blob manifest, so a single file cannot be installable or cache itself. Opened from disk the app works offline already; the Tailwind styling and the font come from the browser cache, and if they are missing the app still works with plain styling. To make a hosted copy installable later, add a separate `sw.js` and `manifest.webmanifest` beside the HTML (a deliberate break of the one-file rule).
+
+## M8 behaviors (tests and hardening)
+- Error boundary: each screen is drawn through `renderViewSafely`. If drawing throws, the main area shows a panel (`role="alert"`) naming the screen, stating that data has not been changed, with Try again, a button to another screen (the board, or Settings when the board is the one that failed), Download a backup file, and the error text (escaped, capped) under Technical details. The header, timer, tabs and other screens keep working. Nothing is saved or changed by the failure.
+- The timer bar and habit strip are each drawn inside their own guard, so a fault in one never stops the other or the screen below. An exception inside a click action shows an error toast and re-draws from the saved state; the app keeps running.
+- Long lists: a board column draws its first 30 cards (12 per group when grouped) with 'Show N more' / 'Show fewer'; the column counter always shows the full number, and search and filters work on all cards. The planner's Unscheduled tray draws its first 30 with 'Show all N'. These choices last until the page is reloaded and are not stored. Dropping a card at the bottom of a shortened column places it just after the last card on screen.
+- Speed target: with 1,000 tasks, 365 journal days and 5,000 focus sessions, opening a screen and every common action stays under 100 ms (`node tests/perf-test.js` for the app's own work; the on-screen figures are recorded in Progress.md).
+- Tests: `tests/cases.js` holds every case and runs in Node (`tests/logic-test.js`) and in a browser (`tests/smoke.html`). The browser page replaces `localStorage` with a pretend one before loading any app code, and refuses to run if it cannot, so real data is never read or written. `window.FLOWBOARD_NO_BOOT` lets the app code load without starting the app.
+- Dates are tested for week starts, midnight, month ends, year ends, leap days and clock changes, and the suite is run in several time zones.
+- `build.js` also writes `index.html`, an identical copy of `flowboard_work_os.html`, for hosting at the folder address.
+

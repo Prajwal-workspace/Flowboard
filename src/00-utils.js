@@ -6,7 +6,7 @@
  * Application Version
  * Used for changelog, about display, and schema tracking.
  */
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.8.0';
 if (typeof window !== 'undefined') {
   window.APP_VERSION = APP_VERSION;
 }
@@ -15,6 +15,14 @@ if (typeof window !== 'undefined') {
  * Changelog shown in Settings > About. Newest first. Add an entry with every milestone.
  */
 const APP_CHANGELOG = [
+  {
+    version: '0.8.0', date: '2026-11-17', title: 'Tests and hardening (M8)',
+    notes: [
+      'If a screen fails to draw you now get a panel with Try again, a way out and a backup button, not a blank page',
+      'Stays quick with 1,000 tasks: long board columns and the planner tray show their first cards with a Show more button',
+      'More checks around midnight, month ends, year ends and clock changes; tests also run in the browser (tests/smoke.html)'
+    ]
+  },
   {
     version: '0.7.0', date: '2026-11-12', title: 'Welcome screen and polish (M7)',
     notes: [
