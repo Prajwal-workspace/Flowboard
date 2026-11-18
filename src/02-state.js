@@ -354,6 +354,41 @@ const actions = {
   },
 
   /**
+   * Rename a tag (v0.8.1). Every task and journal entry refers to the tag by id, so they all
+   * show the new name at once. Refused, with a message, when the name is empty or another tag
+   * already has it (ignoring case).
+   * @param {string} tagId
+   * @param {string} newName
+   * @returns {boolean} true when renamed (or unchanged)
+   */
+  renameTag(tagId, newName) {
+    const s = getState();
+    const tag = (s.tags || []).find(t => t.id === tagId && !t.deletedAt);
+    if (!tag) return false;
+    const name = String(newName || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) {
+      showToast('A tag needs a name.', { type: 'warning' });
+      return false;
+    }
+    if (name === tag.name) return true;
+    const clash = (s.tags || []).find(t => t.id !== tagId && !t.deletedAt && t.name.toLowerCase() === name.toLowerCase());
+    if (clash) {
+      showToast(`There is already a tag called "${clash.name}".`, { type: 'warning' });
+      return false;
+    }
+    const oldName = tag.name;
+    tag.name = name;
+    tag.updatedAt = Date.now();
+    saveState(s);
+    safeRender();
+    showToast(`Tag renamed: "${oldName}" is now "${name}"`, {
+      type: 'success', duration: 6000, actionText: 'Undo',
+      onAction: () => { actions.renameTag(tagId, oldName); if (typeof refreshTagManagerIfOpen === 'function') refreshTagManagerIfOpen(); }
+    });
+    return true;
+  },
+
+  /**
    * Soft delete tag and reset filter if active
    * @param {string} tagId
    */

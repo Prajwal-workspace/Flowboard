@@ -847,6 +847,22 @@ t('search still finds a card that was held back', (() => { actions.setSearchQuer
 plannerTrayShowAll = false;
 t('planner tray: shortened with a Show all button', (() => { const c = { innerHTML: '', querySelectorAll: () => [], querySelector: () => null }; renderViewSafely(c, 'planner'); return (c.innerHTML.match(/data-action="planner-unschedule"/g) || []).length === 0 && (c.innerHTML.match(/data-planner-task=/g) || []).length === PLANNER_TRAY_LIMIT && /Show all 75/.test(c.innerHTML) && />75</.test(c.innerHTML); })());
 
+// ---- v0.8.1: rename tags ----
+localStorage.removeItem(STORAGE_KEY); initState(); actions.completeOnboarding({ start: 'sample' });
+const tagWork = actions.addTag({ name: 'Writting', color: 'sky' });
+getState().tasks[0].tagIds = [tagWork.id];
+const tagTaskId = getState().tasks[0].id;
+t('rename: fixes the spelling, keeps the id and colour', actions.renameTag(tagWork.id, '  Writing  ') === true && selectors.getTagById(tagWork.id).name === 'Writing' && selectors.getTagById(tagWork.id).color === 'sky');
+t('rename: tasks show the new name (they point at the id)', getState().tasks.find(x => x.id === tagTaskId).tagIds.join() === tagWork.id && /Writing/.test(buildTasksCsv(getState())));
+t('rename: refuses an empty name', actions.renameTag(tagWork.id, '   ') === false && selectors.getTagById(tagWork.id).name === 'Writing');
+t('rename: refuses a name another tag has, ignoring case', actions.renameTag(tagWork.id, 'deep work') === false && selectors.getTagById(tagWork.id).name === 'Writing');
+t('rename: changing only the case of its own name is allowed', actions.renameTag(tagWork.id, 'WRITING') === true && selectors.getTagById(tagWork.id).name === 'WRITING');
+t('rename: long names are cut to 40 characters, extra spaces squeezed', actions.renameTag(tagWork.id, 'A   ' + 'b'.repeat(60)) === true && selectors.getTagById(tagWork.id).name.length === 40 && selectors.getTagById(tagWork.id).name.startsWith('A b'));
+t('rename: unknown or deleted tags are ignored', actions.renameTag('nope', 'X') === false && (actions.deleteTag(tagWork.id), actions.renameTag(tagWork.id, 'Back') === false));
+const tag1Before = selectors.getTagById('tag-1').updatedAt;
+t('rename: a deleted tag no longer blocks its name', actions.renameTag('tag-1', 'A ' + 'b'.repeat(38)) === true && selectors.getTagById('tag-1').name === 'A ' + 'b'.repeat(38));
+t('rename: marks the tag as changed (so a later sync picks the newer name)', selectors.getTagById('tag-1').updatedAt >= tag1Before);
+
 const summary = 'Passed ' + pass + ', failed ' + fail;
 if (typeof window !== 'undefined' && typeof window.__flowboardTestsDone === 'function') window.__flowboardTestsDone(pass, fail, failures);
 else console.log(summary);

@@ -6,7 +6,7 @@
  * Application Version
  * Used for changelog, about display, and schema tracking.
  */
-const APP_VERSION = '0.8.0';
+const APP_VERSION = '0.8.1';
 if (typeof window !== 'undefined') {
   window.APP_VERSION = APP_VERSION;
 }
@@ -15,6 +15,10 @@ if (typeof window !== 'undefined') {
  * Changelog shown in Settings > About. Newest first. Add an entry with every milestone.
  */
 const APP_CHANGELOG = [
+  {
+    version: '0.8.1', date: '2026-11-18', title: 'Rename tags',
+    notes: ['Tags can be renamed in the Tag Manager: click the name, type, press Enter. Every task and journal entry with that tag updates, and you can undo.']
+  },
   {
     version: '0.8.0', date: '2026-11-17', title: 'Tests and hardening (M8)',
     notes: [

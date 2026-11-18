@@ -1,7 +1,7 @@
 # FlowBoard progress
 
-Last updated: 2026-11-17
-Version: 0.8.0, schemaVersion 3
+Last updated: 2026-11-18
+Version: 0.8.1, schemaVersion 3
 Code: https://github.com/Prajwal-workspace/Flowboard
 
 ## Done
@@ -14,6 +14,9 @@ Code: https://github.com/Prajwal-workspace/Flowboard
 - M6: settings and data safety: JSON export and checked import with preview and undo, CSV export, daily backup copies, Start blank, sample data, storage meter
 - M7: first-run welcome, keyboard shortcut list, U to undo, Offline badge, About panel with changelog, accessibility pass
 - M8: error panel when a screen fails to draw (Try again, way out, backup), guards around the header pieces and click actions, long board columns and the planner tray shortened with Show more, date-edge and migration tests, tests runnable in the browser (tests/smoke.html), speed check (tests/perf-test.js), README, index.html for hosting
+
+## Fixes after M8 (one per version)
+- v0.8.1: rename tags in the Tag Manager (click the name, Enter saves, Escape cancels, Undo in the message). Empty and duplicate names are refused.
 
 ## Test results (2026-11-17)
 - Logic tests: 362 passed, 0 failed (Node), also in 8 time zones, and the same 362 in real Chrome through tests/smoke.html
@@ -49,7 +52,7 @@ Code: https://github.com/Prajwal-workspace/Flowboard
 
 ## How to check the project
 - node build.js
-- node tests/logic-test.js   (expect: Passed 362, failed 0)
+- node tests/logic-test.js   (expect: Passed 371, failed 0)
 - node tests/perf-test.js    (expect: All steps under 100 ms)
 - or open tests/smoke.html in a browser
 

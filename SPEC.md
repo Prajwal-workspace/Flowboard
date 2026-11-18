@@ -364,3 +364,6 @@ flowboard/
 - Dates are tested for week starts, midnight, month ends, year ends, leap days and clock changes, and the suite is run in several time zones.
 - `build.js` also writes `index.html`, an identical copy of `flowboard_work_os.html`, for hosting at the folder address.
 
+## Fixes after M8
+- v0.8.1, rename tags: in the Tag Manager each tag's name is a text box. Enter or leaving the box saves; Escape puts the old name back without closing the dialog. Names are trimmed, inner spaces squeezed, capped at 40 characters. Refused with a message: empty, or the same as another active tag ignoring case (changing only the case of its own name is allowed). Tasks and journal entries refer to tags by id, so they show the new name immediately. The confirmation toast has Undo. `updatedAt` is set so sync can pick the newer name later.
+
