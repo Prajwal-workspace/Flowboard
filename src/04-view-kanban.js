@@ -618,9 +618,11 @@ function renderTaskCard(task, colId, s, dragEnabled = true) {
         </div>
       </div>
 
-      <!-- Card Title & Description (Strictly Escaped for XSS Protection) -->
+      <!-- Card Title & Description (Strictly Escaped for XSS Protection).
+           The title is a button so keyboard and screen-reader users can open the card too;
+           a click anywhere else on the card also opens it (see openCardFromClick). -->
       <h3 class="font-semibold text-sm text-[var(--text-primary)] leading-snug break-words">
-        ${esc(task.title)}
+        <button type="button" data-action="edit-task" data-task-id="${esc(task.id)}" data-edit-source="title" class="card-title-btn" title="Open to edit">${esc(task.title)}</button>
       </h3>
       ${task.desc ? `
         <p class="task-desc text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed line-clamp-3 break-words">
@@ -704,6 +706,7 @@ function renderTaskCard(task, colId, s, dragEnabled = true) {
             type="button" 
             data-action="edit-task" 
             data-task-id="${esc(task.id)}" 
+            data-edit-source="pencil"
             class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             title="Edit task"
             aria-label="Edit task ${esc(task.title)}"

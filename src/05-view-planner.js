@@ -34,7 +34,7 @@ function renderPlannerDayCard(task) {
   const done = task.status === 'done';
   const title = esc(task.title);
   return `
-    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
+    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}" title="Click to edit, drag to another day">
       <div class="flex items-start gap-1.5">
         <button type="button" data-action="planner-toggle-done" data-task-id="${esc(task.id)}"
           aria-pressed="${done ? 'true' : 'false'}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${title}"
@@ -68,7 +68,7 @@ function renderPlannerTrayCard(task, weekDates, todayStr) {
         : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'}"
       aria-label="Schedule ${title} on ${esc(longLabel || plannerLongDate(date))}">${key}</button>`).join('');
   return `
-    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
+    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}" title="Click to edit, or tap a day to schedule">
       <p class="text-sm font-medium leading-snug break-words text-[var(--text-primary)]">
         <span aria-hidden="true">${PLANNER_PRIORITY_ICON[task.priority] || ''}</span> ${title}
       </p>

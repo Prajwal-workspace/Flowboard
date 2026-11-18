@@ -366,4 +366,5 @@ flowboard/
 
 ## Fixes after M8
 - v0.8.1, rename tags: in the Tag Manager each tag's name is a text box. Enter or leaving the box saves; Escape puts the old name back without closing the dialog. Names are trimmed, inner spaces squeezed, capped at 40 characters. Refused with a message: empty, or the same as another active tag ignoring case (changing only the case of its own name is allowed). Tasks and journal entries refer to tags by id, so they show the new name immediately. The confirmation toast has Undo. `updatedAt` is set so sync can pick the newer name later.
+- v0.8.2, click a card to edit: a click anywhere on a board card or planner card opens the task dialog, except on buttons, links, fields and labels on the card, while text is selected, or when the click only closes an open menu. The card title is a button (`data-edit-source="title"`) so keyboard and screen-reader users can open it; the pencil (`data-edit-source="pencil"`) stays. Cards that cannot be dragged show a pointer cursor.
 

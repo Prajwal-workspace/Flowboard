@@ -519,6 +519,40 @@ input::placeholder, textarea::placeholder {
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 
+/* Cards that cannot be dragged (sorted or grouped board) open on click: show a pointer */
+.task-card[draggable="false"] {
+  cursor: pointer;
+}
+
+/* Card title: a button that looks like the heading text (v0.8.2) */
+.card-title-btn {
+  display: inline;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+.card-title-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .card-title-btn {
+    display: block;
+    width: 100%;
+    min-height: 44px !important;
+    min-width: 0 !important;
+  }
+}
+
 .task-card:active {
   cursor: grabbing;
 }

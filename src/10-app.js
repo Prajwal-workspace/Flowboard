@@ -177,7 +177,31 @@ function reportActionError(err) {
  * Global Event Delegation Dispatcher
  * @param {Event} e
  */
+/**
+ * Click anywhere on a task card (board or planner) to open it for editing (v0.8.2).
+ * Buttons, links and fields on the card keep their own job, and a click that only closes an
+ * open menu does not also open the card.
+ * @returns {boolean} true when a card was opened
+ */
+function openCardFromClick(e) {
+  const el = e && e.target;
+  if (!el || typeof el.closest !== 'function') return false;
+  const card = el.closest('.task-card, .planner-card');
+  const main = document.getElementById('main-content');
+  if (!card || !main || !main.contains(card)) return false;
+  if (el.closest('button, a, input, select, textarea, label, summary, [contenteditable="true"]')) return false;
+  try { if (String(window.getSelection ? window.getSelection() : '').length > 0) return false; } catch (err) { /* no selection API */ }
+  const taskId = card.getAttribute('data-task-id') || card.getAttribute('data-planner-task');
+  const task = taskId ? (getState().tasks || []).find(t => t.id === taskId && !t.deletedAt) : null;
+  if (!task) return false;
+  openTaskModal(task.id);
+  return true;
+}
+
 function handleGlobalClick(e) {
+  // A click that closes an open menu should do only that
+  const menuWasOpen = Boolean(activeMoveMenuTaskId) || Boolean(openKanbanMenu);
+
   // If clicking outside move menu, close open move menu
   if (!e.target.closest('[data-action="toggle-move-menu"]') && activeMoveMenuTaskId) {
     activeMoveMenuTaskId = null;
@@ -191,7 +215,10 @@ function handleGlobalClick(e) {
   }
 
   const target = e.target.closest('[data-action]');
-  if (!target) return;
+  if (!target) {
+    if (!menuWasOpen) openCardFromClick(e);
+    return;
+  }
 
   const action = target.getAttribute('data-action');
 

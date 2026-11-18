@@ -863,6 +863,14 @@ const tag1Before = selectors.getTagById('tag-1').updatedAt;
 t('rename: a deleted tag no longer blocks its name', actions.renameTag('tag-1', 'A ' + 'b'.repeat(38)) === true && selectors.getTagById('tag-1').name === 'A ' + 'b'.repeat(38));
 t('rename: marks the tag as changed (so a later sync picks the newer name)', selectors.getTagById('tag-1').updatedAt >= tag1Before);
 
+// ---- v0.8.2: click a card to edit ----
+localStorage.removeItem(STORAGE_KEY); initState(); actions.completeOnboarding({ start: 'sample' });
+const cardHtml = renderTaskCard(getState().tasks[0], getState().tasks[0].status, getState(), true);
+t('card title is a button that opens the editor', new RegExp('<button type="button" data-action="edit-task" data-task-id="' + getState().tasks[0].id + '" data-edit-source="title" class="card-title-btn"').test(cardHtml));
+t('title and pencil can be told apart (so focus returns to the one you used)', /data-edit-source="title"/.test(cardHtml) && /data-edit-source="pencil"/.test(cardHtml));
+t('card title stays escaped', (() => { const h = renderTaskCard({ ...getState().tasks[0], title: '<img src=x onerror=alert(1)>' }, 'todo', getState(), true); return !/<img/.test(h) && /&lt;img/.test(h); })());
+t('openCardFromClick: nothing to open without a card', openCardFromClick({ target: { closest: () => null } }) === false && openCardFromClick(null) === false && openCardFromClick({}) === false);
+
 const summary = 'Passed ' + pass + ', failed ' + fail;
 if (typeof window !== 'undefined' && typeof window.__flowboardTestsDone === 'function') window.__flowboardTestsDone(pass, fail, failures);
 else console.log(summary);

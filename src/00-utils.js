@@ -6,7 +6,7 @@
  * Application Version
  * Used for changelog, about display, and schema tracking.
  */
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.2';
 if (typeof window !== 'undefined') {
   window.APP_VERSION = APP_VERSION;
 }
@@ -15,6 +15,10 @@ if (typeof window !== 'undefined') {
  * Changelog shown in Settings > About. Newest first. Add an entry with every milestone.
  */
 const APP_CHANGELOG = [
+  {
+    version: '0.8.2', date: '2026-11-18', title: 'Click a card to edit it',
+    notes: ['Click anywhere on a task card, on the board or in the planner, to open it for editing. The pencil still works, and the buttons on the card keep their own jobs.']
+  },
   {
     version: '0.8.1', date: '2026-11-18', title: 'Rename tags',
     notes: ['Tags can be renamed in the Tag Manager: click the name, type, press Enter. Every task and journal entry with that tag updates, and you can undo.']

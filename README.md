@@ -53,6 +53,7 @@ tests/                  cases.js, logic-test.js, smoke.html, perf-test.js, stres
 build.js
 SPEC.md                 how every feature is meant to behave
 Progress.md             what is done, what is next, known gaps
+CHANGELOG.md            every version and what it changed
 ```
 
 Edit only the files in `src/`. `flowboard_work_os.html` and `index.html` are produced by the build.
@@ -74,4 +75,4 @@ The live site updates a minute or two after the push.
 
 ## Status
 
-Version 0.8.0. Built in milestones M0 to M8; see `Progress.md`. Cloud sync between devices is planned and not built.
+Version 0.8.2. Built in milestones M0 to M8, then small fixes; see `CHANGELOG.md` for every version and `Progress.md` for what is next. Cloud sync between devices is planned and not built.

@@ -1,7 +1,7 @@
 # FlowBoard progress
 
 Last updated: 2026-11-18
-Version: 0.8.1, schemaVersion 3
+Version: 0.8.2, schemaVersion 3
 Code: https://github.com/Prajwal-workspace/Flowboard
 
 ## Done
@@ -16,6 +16,7 @@ Code: https://github.com/Prajwal-workspace/Flowboard
 - M8: error panel when a screen fails to draw (Try again, way out, backup), guards around the header pieces and click actions, long board columns and the planner tray shortened with Show more, date-edge and migration tests, tests runnable in the browser (tests/smoke.html), speed check (tests/perf-test.js), README, index.html for hosting
 
 ## Fixes after M8 (one per version)
+- v0.8.2: click anywhere on a task card (board and planner) to open it for editing; the title is a button for keyboard users
 - v0.8.1: rename tags in the Tag Manager (click the name, Enter saves, Escape cancels, Undo in the message). Empty and duplicate names are refused.
 
 ## Test results (2026-11-17)
@@ -52,7 +53,7 @@ Code: https://github.com/Prajwal-workspace/Flowboard
 
 ## How to check the project
 - node build.js
-- node tests/logic-test.js   (expect: Passed 371, failed 0)
+- node tests/logic-test.js   (expect: Passed 375, failed 0)
 - node tests/perf-test.js    (expect: All steps under 100 ms)
 - or open tests/smoke.html in a browser
 

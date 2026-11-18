@@ -554,6 +554,40 @@ input::placeholder, textarea::placeholder {
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 
+/* Cards that cannot be dragged (sorted or grouped board) open on click: show a pointer */
+.task-card[draggable="false"] {
+  cursor: pointer;
+}
+
+/* Card title: a button that looks like the heading text (v0.8.2) */
+.card-title-btn {
+  display: inline;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+.card-title-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .card-title-btn {
+    display: block;
+    width: 100%;
+    min-height: 44px !important;
+    min-width: 0 !important;
+  }
+}
+
 .task-card:active {
   cursor: grabbing;
 }
@@ -819,7 +853,7 @@ html:not(.dark) .text-neutral-400 { color: #525252; }
  * Application Version
  * Used for changelog, about display, and schema tracking.
  */
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.2';
 if (typeof window !== 'undefined') {
   window.APP_VERSION = APP_VERSION;
 }
@@ -828,6 +862,10 @@ if (typeof window !== 'undefined') {
  * Changelog shown in Settings > About. Newest first. Add an entry with every milestone.
  */
 const APP_CHANGELOG = [
+  {
+    version: '0.8.2', date: '2026-11-18', title: 'Click a card to edit it',
+    notes: ['Click anywhere on a task card, on the board or in the planner, to open it for editing. The pencil still works, and the buttons on the card keep their own jobs.']
+  },
   {
     version: '0.8.1', date: '2026-11-18', title: 'Rename tags',
     notes: ['Tags can be renamed in the Tag Manager: click the name, type, press Enter. Every task and journal entry with that tag updates, and you can undo.']
@@ -5195,9 +5233,11 @@ function renderTaskCard(task, colId, s, dragEnabled = true) {
         </div>
       </div>
 
-      <!-- Card Title & Description (Strictly Escaped for XSS Protection) -->
+      <!-- Card Title & Description (Strictly Escaped for XSS Protection).
+           The title is a button so keyboard and screen-reader users can open the card too;
+           a click anywhere else on the card also opens it (see openCardFromClick). -->
       <h3 class="font-semibold text-sm text-[var(--text-primary)] leading-snug break-words">
-        ${esc(task.title)}
+        <button type="button" data-action="edit-task" data-task-id="${esc(task.id)}" data-edit-source="title" class="card-title-btn" title="Open to edit">${esc(task.title)}</button>
       </h3>
       ${task.desc ? `
         <p class="task-desc text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed line-clamp-3 break-words">
@@ -5281,6 +5321,7 @@ function renderTaskCard(task, colId, s, dragEnabled = true) {
             type="button" 
             data-action="edit-task" 
             data-task-id="${esc(task.id)}" 
+            data-edit-source="pencil"
             class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             title="Edit task"
             aria-label="Edit task ${esc(task.title)}"
@@ -6082,7 +6123,7 @@ function renderPlannerDayCard(task) {
   const done = task.status === 'done';
   const title = esc(task.title);
   return `
-    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
+    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}" title="Click to edit, drag to another day">
       <div class="flex items-start gap-1.5">
         <button type="button" data-action="planner-toggle-done" data-task-id="${esc(task.id)}"
           aria-pressed="${done ? 'true' : 'false'}" aria-label="${done ? 'Mark not done' : 'Mark done'}: ${title}"
@@ -6116,7 +6157,7 @@ function renderPlannerTrayCard(task, weekDates, todayStr) {
         : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]'}"
       aria-label="Schedule ${title} on ${esc(longLabel || plannerLongDate(date))}">${key}</button>`).join('');
   return `
-    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}">
+    <div class="planner-card rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] p-2.5 cursor-grab" draggable="true" data-planner-task="${esc(task.id)}" title="Click to edit, or tap a day to schedule">
       <p class="text-sm font-medium leading-snug break-words text-[var(--text-primary)]">
         <span aria-hidden="true">${PLANNER_PRIORITY_ICON[task.priority] || ''}</span> ${title}
       </p>
@@ -7873,7 +7914,31 @@ function reportActionError(err) {
  * Global Event Delegation Dispatcher
  * @param {Event} e
  */
+/**
+ * Click anywhere on a task card (board or planner) to open it for editing (v0.8.2).
+ * Buttons, links and fields on the card keep their own job, and a click that only closes an
+ * open menu does not also open the card.
+ * @returns {boolean} true when a card was opened
+ */
+function openCardFromClick(e) {
+  const el = e && e.target;
+  if (!el || typeof el.closest !== 'function') return false;
+  const card = el.closest('.task-card, .planner-card');
+  const main = document.getElementById('main-content');
+  if (!card || !main || !main.contains(card)) return false;
+  if (el.closest('button, a, input, select, textarea, label, summary, [contenteditable="true"]')) return false;
+  try { if (String(window.getSelection ? window.getSelection() : '').length > 0) return false; } catch (err) { /* no selection API */ }
+  const taskId = card.getAttribute('data-task-id') || card.getAttribute('data-planner-task');
+  const task = taskId ? (getState().tasks || []).find(t => t.id === taskId && !t.deletedAt) : null;
+  if (!task) return false;
+  openTaskModal(task.id);
+  return true;
+}
+
 function handleGlobalClick(e) {
+  // A click that closes an open menu should do only that
+  const menuWasOpen = Boolean(activeMoveMenuTaskId) || Boolean(openKanbanMenu);
+
   // If clicking outside move menu, close open move menu
   if (!e.target.closest('[data-action="toggle-move-menu"]') && activeMoveMenuTaskId) {
     activeMoveMenuTaskId = null;
@@ -7887,7 +7952,10 @@ function handleGlobalClick(e) {
   }
 
   const target = e.target.closest('[data-action]');
-  if (!target) return;
+  if (!target) {
+    if (!menuWasOpen) openCardFromClick(e);
+    return;
+  }
 
   const action = target.getAttribute('data-action');
 
